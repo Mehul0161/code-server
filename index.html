@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Code Generator</title>
+    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <style>
+        .transform {
+            transition: transform 0.2s ease-in-out;
+        }
+        .folder-container .folder-content {
+            transition: all 0.2s ease-in-out;
+        }
+        .file-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 150px; /* Adjust based on your sidebar width */
+        }
+        .file-button {
+            width: 100%;
+            min-width: 0;
+        }
+        .file-button-content {
+            display: flex;
+            align-items: center;
+            min-width: 0;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <div class="container mx-auto p-6">
+        <div class="grid grid-cols-3 gap-6">
+            <!-- Left Section -->
+            <div class="col-span-1">
+                <div class="bg-gray-800 rounded-lg p-6 mb-6">
+                    <p class="text-gray-300">
+                        I'll help you create a beautiful and professional website using HTML, CSS, and JavaScript. I'll create a modern, clean design with responsive layout and interactive features.
+                    </p>
+                </div>
+
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <div class="flex flex-col gap-4">
+                        <input 
+                            type="text" 
+                            id="keywordInput" 
+                            placeholder="What would you like me to create?"
+                            class="w-full p-3 rounded-md bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none"
+                        >
+                        <button 
+                            type="button"
+                            id="generateBtn"
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-md transition-colors cursor-pointer flex items-center justify-center gap-2"
+                        >
+                            <span>Generate Code</span>
+                            <div id="buttonLoader" class="hidden">
+                                <div class="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Section -->
+            <div class="col-span-2">
+                <div id="loadingIndicator" class="hidden mb-4">
+                    <!-- Remove this entire div -->
+                </div>
+
+                <div class="bg-gray-800 rounded-lg overflow-hidden shadow-xl">
+                    <div class="flex bg-gray-900 text-gray-400 text-sm">
+                        <button onclick="toggleView('code')" id="codeTab" class="px-4 py-2 hover:bg-gray-800 bg-gray-800">Code</button>
+                        <button onclick="toggleView('preview')" id="previewTab" class="px-4 py-2 hover:bg-gray-800">Preview</button>
+                    </div>
+
+                    <div class="flex h-[600px]">
+                        <div class="w-48 bg-gray-900 p-2 border-r border-gray-700">
+                            <div class="text-sm text-gray-400 mb-2">Files</div>
+                            <div class="space-y-1">
+                                <button onclick="showCode('htmlCode')" class="file-button flex items-center w-full text-left px-2 py-1 rounded hover:bg-gray-800">
+                                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M4 4h12v2H4V4zm0 5h12v2H4V9zm0 5h12v2H4v-2z"/>
+                                    </svg>
+                                    index.html
+                                </button>
+                                <button onclick="showCode('cssCode')" class="file-button flex items-center w-full text-left px-2 py-1 rounded hover:bg-gray-800">
+                                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M4 4h12v2H4V4zm0 5h12v2H4V9zm0 5h12v2H4v-2z"/>
+                                    </svg>
+                                    style.css
+                                </button>
+                                <button onclick="showCode('jsCode')" class="file-button flex items-center w-full text-left px-2 py-1 rounded hover:bg-gray-800">
+                                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M4 4h12v2H4V4zm0 5h12v2H4V9zm0 5h12v2H4v-2z"/>
+                                    </svg>
+                                    script.js
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="flex-1 relative">
+                            <div id="codeView" class="h-full">
+                                <button onclick="copyCurrentCode()" class="copy-btn hidden absolute top-2 right-2 bg-gray-700/50 hover:bg-gray-600 p-2 rounded-md z-10">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                                    </svg>
+                                </button>
+                                
+                                <div id="htmlCodeSection" class="hidden h-full overflow-auto">
+                                    <pre class="m-0 h-full"><code id="htmlCode" class="language-html text-sm">// HTML code will appear here</code></pre>
+                                </div>
+                                <div id="cssCodeSection" class="hidden h-full overflow-auto">
+                                    <pre class="m-0 h-full"><code id="cssCode" class="language-css text-sm">// CSS code will appear here</code></pre>
+                                </div>
+                                <div id="jsCodeSection" class="hidden h-full overflow-auto">
+                                    <pre class="m-0 h-full"><code id="jsCode" class="language-javascript text-sm">// JavaScript code will appear here</code></pre>
+                                </div>
+                            </div>
+
+                            <div id="previewView" class="hidden h-full bg-white">
+                                <div class="h-full w-full relative">
+                                    <iframe 
+                                        id="previewFrame" 
+                                        class="w-full h-full border-none"
+                                        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-presentation allow-downloads"
+                                        allow="clipboard-read; clipboard-write; cross-origin-isolated"
+                                    ></iframe>
+                                    <div id="previewError" class="hidden absolute inset-0 bg-red-50 p-4 text-red-600 overflow-auto">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
