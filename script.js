@@ -8,10 +8,65 @@ document.addEventListener('DOMContentLoaded', () => {
     showCode('htmlCode');
     toggleView('code');
 
-    // Event listeners
-    generateBtn.addEventListener('click', handleGenerate);
-    keywordInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') handleGenerate();
+    let selectedTechnology = null;
+
+    // Add this at the beginning of your DOMContentLoaded event listener
+    function createGeneratingIndicator() {
+        const indicator = document.createElement('div');
+        indicator.className = 'generating-indicator hidden';
+        indicator.innerHTML = `
+            <div class="generating-content">
+                <div class="mb-4">
+                    <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mx-auto"></div>
+                </div>
+                <div class="text-lg font-semibold text-white mb-2">Generating Code</div>
+                <div class="text-sm text-gray-400">Using <span id="selectedTechIndicator" class="text-blue-400"></span></div>
+            </div>
+        `;
+        document.body.appendChild(indicator);
+        return indicator;
+    }
+
+    const generatingIndicator = createGeneratingIndicator();
+
+    // Update the technology button click handler
+    document.querySelectorAll('.technology-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Remove active state from all buttons
+            document.querySelectorAll('.technology-btn').forEach(b => {
+                b.classList.remove('border-blue-500', 'selected');
+                b.classList.add('border-transparent');
+            });
+
+            // Add active state to clicked button with animation
+            btn.classList.remove('border-transparent');
+            btn.classList.add('border-blue-500', 'selected');
+
+            // Store selected technology
+            selectedTechnology = btn.dataset.tech;
+            
+            // Update the tech name in the generating indicator
+            document.getElementById('selectedTechIndicator').textContent = 
+                btn.querySelector('.tech-name').textContent;
+
+            // Enable generate button if input has value
+            const inputText = keywordInput.value.trim();
+            generateBtn.disabled = !inputText;
+            generateBtn.classList.toggle('opacity-50', !inputText);
+
+            // Add button press animation
+            btn.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                btn.style.transform = '';
+            }, 100);
+        });
+    });
+
+    // Update input handling
+    keywordInput.addEventListener('input', () => {
+        const inputText = keywordInput.value.trim();
+        generateBtn.disabled = !inputText;
+        generateBtn.classList.toggle('opacity-50', !inputText);
     });
 
     async function handleGenerate() {
@@ -21,12 +76,19 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Show loading state in button
+        // Show loading state
         const buttonText = generateBtn.querySelector('span');
         buttonText.textContent = 'Generating...';
         buttonLoader.classList.remove('hidden');
         generateBtn.disabled = true;
         generateBtn.classList.add('opacity-50');
+        generatingIndicator.classList.remove('hidden');
+
+        // Update the tech indicator text
+        document.getElementById('selectedTechIndicator').textContent = 
+            selectedTechnology ? 
+            document.querySelector(`[data-tech="${selectedTechnology}"] .tech-name`).textContent : 
+            'HTML/CSS/JavaScript';
 
         try {
             const response = await fetch('http://localhost:5000/api/code', {
@@ -34,7 +96,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ inputText })
+                body: JSON.stringify({ 
+                    inputText,
+                    technology: selectedTechnology || 'vanilla' // Default to vanilla if no technology selected
+                })
             });
 
             if (!response.ok) throw new Error('Failed to generate code');
@@ -46,48 +111,88 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error('Invalid response format');
             }
 
-            // Clear existing file tree and code sections
-            fileList.innerHTML = '';
-            document.getElementById('codeView').innerHTML = '';
-            
+            // Hide generating indicator
+            generatingIndicator.classList.add('hidden');
+
+            // Hide initial view and show code preview view
+            document.getElementById('initialView').classList.add('hidden');
+            document.getElementById('codePreviewView').classList.remove('hidden');
+
             // Update file tree and code sections
             updateFileTree(data.folders);
             createCodeSections(data.files);
 
-            // Show first file if available
-            if (data.files && data.files.length > 0) {
-                const firstFile = data.files[0];
-                if (firstFile && firstFile.id) {
-                    showCode(firstFile.id);
-                }
-            }
-
-            // Show copy button
-            const copyBtn = document.querySelector('.copy-btn');
-            if (copyBtn) {
-                copyBtn.classList.remove('hidden');
-            }
-
-            // Apply syntax highlighting
-            Prism.highlightAll();
+            // Show download button
+            document.getElementById('downloadBtn').classList.remove('hidden');
 
         } catch (error) {
             console.error("Error:", error);
             alert("Failed to generate code. Please try again!");
         } finally {
-            // Reset button state
+            // Reset states
             buttonText.textContent = 'Generate Code';
             buttonLoader.classList.add('hidden');
             generateBtn.disabled = false;
             generateBtn.classList.remove('opacity-50');
+            generatingIndicator.classList.add('hidden');
         }
     }
 
     function updateFileTree(folderStructure) {
+        const fileList = document.querySelector('.space-y-1');
         fileList.innerHTML = '';
+
+        // Create main project folder
+        const mainFolder = document.createElement('div');
+        mainFolder.className = 'folder-container';
+        
+        const mainFolderButton = document.createElement('button');
+        mainFolderButton.className = 'flex items-center w-full text-left px-2 py-1 rounded hover:bg-gray-800 text-gray-300';
+        
+        const mainArrow = document.createElement('span');
+        mainArrow.className = 'inline-block w-4 h-4 mr-1 transform transition-transform duration-200 flex-shrink-0';
+        mainArrow.innerHTML = `
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+        `;
+        
+        const mainFolderIcon = document.createElement('span');
+        mainFolderIcon.className = 'flex-shrink-0 mr-2';
+        mainFolderIcon.innerHTML = `
+            <svg class="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+            </svg>
+        `;
+
+        const mainFolderName = document.createElement('span');
+        mainFolderName.className = 'file-name font-medium';
+        mainFolderName.textContent = folderStructure.name || 'project';
+        
+        mainFolderButton.appendChild(mainArrow);
+        mainFolderButton.appendChild(mainFolderIcon);
+        mainFolderButton.appendChild(mainFolderName);
+        
+        const mainContent = document.createElement('div');
+        mainContent.className = 'folder-content ml-4 mt-1';
+        
+        // Toggle folder
+        mainFolderButton.addEventListener('click', () => {
+            mainArrow.classList.toggle('rotate-90');
+            mainContent.classList.toggle('hidden');
+        });
+        
+        mainFolder.appendChild(mainFolderButton);
+        mainFolder.appendChild(mainContent);
+        fileList.appendChild(mainFolder);
+
+        // Render children inside main folder
         if (folderStructure && folderStructure.children) {
-            renderFolder(folderStructure.children, fileList, '');
+            renderFolder(folderStructure.children, mainContent, '');
         }
+
+        // Expand main folder by default
+        mainArrow.classList.add('rotate-90');
     }
 
     function renderFolder(folder, parentElement, path) {
@@ -129,174 +234,173 @@ document.addEventListener('DOMContentLoaded', () => {
                 folderButton.appendChild(arrow);
                 folderButton.appendChild(folderIcon);
                 folderButton.appendChild(folderName);
-                folderContainer.appendChild(folderButton);
                 
-                const folderContent = document.createElement('div');
-                folderContent.className = 'ml-4 hidden';
-                folderContainer.appendChild(folderContent);
+                const content = document.createElement('div');
+                content.className = 'folder-content ml-4 mt-1';
                 
+                // Toggle folder
                 folderButton.addEventListener('click', () => {
                     arrow.classList.toggle('rotate-90');
-                    folderContent.classList.toggle('hidden');
+                    content.classList.toggle('hidden');
                 });
                 
+                folderContainer.appendChild(folderButton);
+                folderContainer.appendChild(content);
                 parentElement.appendChild(folderContainer);
-                renderFolder(item.children, folderContent, itemPath);
+                
+                if (item.children) {
+                    renderFolder(item.children, content, itemPath);
+                }
             } else {
                 const fileButton = document.createElement('button');
                 fileButton.className = 'file-button flex items-center w-full text-left px-2 py-1 rounded hover:bg-gray-800';
                 fileButton.onclick = () => showCode(item.id);
                 
-                const iconColor = getFileIconColor(item.extension);
+                const fileIcon = document.createElement('span');
+                fileIcon.className = 'flex-shrink-0 mr-2';
+                fileIcon.innerHTML = getFileIcon(name);
                 
-                // Create a container for file button content
-                const fileButtonContent = document.createElement('div');
-                fileButtonContent.className = 'file-button-content w-full';
+                const fileName = document.createElement('span');
+                fileName.className = 'file-name';
+                fileName.textContent = name;
                 
-                // Add icon and filename
-                fileButtonContent.innerHTML = `
-                    <span class="mr-2 flex-shrink-0 ${iconColor}">
-                        ${getFileIcon(item.extension)}
-                    </span>
-                    <span class="file-name" title="${name}">${name}</span>
-                `;
-                
-                fileButton.appendChild(fileButtonContent);
+                fileButton.appendChild(fileIcon);
+                fileButton.appendChild(fileName);
                 parentElement.appendChild(fileButton);
             }
         });
     }
 
-    function getFileIcon(extension) {
-        const icons = {
-            html: `<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M4.5 4.5l.405 16.195L12 22.5l7.095-1.805L19.5 4.5h-15zm11.61 13.635L12 19.5l-4.11-1.365L7.725 15h1.995l.075 1.5L12 17.25l2.205-.75.15-2.7h-4.71l-.15-2.025 5.01-.015.105-2.01h-5.37l-.09-1.95h5.55l.075-1.95H7.725L7.8 8.775l8.31.015-.3 9.345z" fill="currentColor"/>
-                </svg>`,
-            css: `<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M4.5 4.5l.405 16.195L12 22.5l7.095-1.805L19.5 4.5h-15zm11.61 13.635L12 19.5l-4.11-1.365-.165-2.1h1.995l.075 1.05 2.205.6 2.205-.6.15-2.55h-7.2l-.75-8.4h9.3l-.255 3.3h-6.54l.15 2.25h6.195l-.405 5.85z" fill="currentColor"/>
-                </svg>`,
-            js: `<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M3 3h18v18H3V3zm16.5 16.5V6h-15v13.5h15zm-7.65-3v-1.5a1.5 1.5 0 00-3 0V15h1.5v-1.5a.75.75 0 111.5 0v3a1.5 1.5 0 01-3 0V15h1.5v1.5a.75.75 0 101.5 0zm5.25-4.5h-1.5V15a.75.75 0 11-1.5 0v-3h-1.5v3a2.25 2.25 0 104.5 0v-3z" fill="currentColor"/>
-                </svg>`,
-            jsx: `<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 13.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" fill="currentColor"/>
-                    <path d="M12 22.5c-2.786 0-5.33-.456-7.324-1.366-1.993-.91-3.176-2.147-3.176-3.634 0-1.487 1.183-2.724 3.176-3.634C6.67 12.956 9.214 12.5 12 12.5c2.786 0 5.33.456 7.324 1.366 1.993.91 3.176 2.147 3.176 3.634 0 1.487-1.183 2.724-3.176 3.634C17.33 22.044 14.786 22.5 12 22.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.5 8.5c-2.786 0-5.33-.456-7.324-1.366C-2.817 6.224-4 4.987-4 3.5c0-1.487 1.183-2.724 3.176-3.634C1.17.956 3.714.5 6.5.5c2.786 0 5.33.456 7.324 1.366C15.817 2.776 17 4.013 17 5.5c0 1.487-1.183 2.724-3.176 3.634C11.83 10.044 9.286 10.5 6.5 10.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M17.5 8.5c-2.786 0-5.33-.456-7.324-1.366C8.183 6.224 7 4.987 7 3.5c0-1.487 1.183-2.724 3.176-3.634C12.17.956 14.714.5 17.5.5c2.786 0 5.33.456 7.324 1.366C26.817 2.776 28 4.013 28 5.5c0 1.487-1.183 2.724-3.176 3.634C22.83 10.044 20.286 10.5 17.5 10.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>`,
-            json: `<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M4 17.5v1a1.5 1.5 0 001.5 1.5h13a1.5 1.5 0 001.5-1.5v-1m-16 0v-11A1.5 1.5 0 016.5 5h11A1.5 1.5 0 0119 6.5v11m-15 0h15m0 0l-3-3m3 3l-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>`,
-            md: `<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14H7v-7h3v7zm4-7h3v7h-3v-7z" fill="currentColor"/>
-                </svg>`,
-            py: 'text-green-500',
-            java: 'text-red-400',
-            php: 'text-purple-500',
-            rb: 'text-red-500',
-            go: 'text-blue-300',
-            rs: 'text-orange-500',
-            vue: 'text-green-400',
-            svelte: 'text-red-500',
-            scss: 'text-pink-400',
-            less: 'text-blue-300',
-            sql: 'text-yellow-300',
-            graphql: 'text-pink-500',
-            default: `<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9l-7-7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>`
-        };
-        return icons[extension] || icons.default;
-    }
-
-    function getFileIconColor(extension) {
-        const colors = {
-            html: 'text-orange-400',
-            css: 'text-blue-400',
+    // Helper function to get file icon based on extension
+    function getFileIcon(filename) {
+        const ext = filename.split('.').pop().toLowerCase();
+        const iconColor = {
             js: 'text-yellow-400',
-            jsx: 'text-blue-500',
-            ts: 'text-blue-600',
-            tsx: 'text-blue-500',
-            json: 'text-green-400',
-            md: 'text-purple-400',
-            py: 'text-green-500',
-            java: 'text-red-400',
-            php: 'text-purple-500',
-            rb: 'text-red-500',
-            go: 'text-blue-300',
-            rs: 'text-orange-500',
-            vue: 'text-green-400',
-            svelte: 'text-red-500',
-            scss: 'text-pink-400',
-            less: 'text-blue-300',
-            sql: 'text-yellow-300',
-            graphql: 'text-pink-500'
-        };
-        return colors[extension] || 'text-gray-400';
+            jsx: 'text-blue-400',
+            ts: 'text-blue-500',
+            tsx: 'text-blue-400',
+            css: 'text-blue-600',
+            html: 'text-orange-500',
+            json: 'text-yellow-300',
+            md: 'text-gray-400'
+        }[ext] || 'text-gray-400';
+
+        return `
+            <svg class="w-4 h-4 ${iconColor}" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 2l5 5h-5V4zM6 20V4h5v7h7v9H6z"/>
+            </svg>
+        `;
     }
 
     function createCodeSections(files) {
         const codeView = document.getElementById('codeView');
         
-        // Remove existing code sections
-        document.querySelectorAll('[id$="Section"]').forEach(el => el.remove());
+        // Clear existing content
+        codeView.innerHTML = '';
         
-        // Create new code sections for each file
         files.forEach(file => {
             const section = document.createElement('div');
             section.id = `${file.id}Section`;
-            section.className = 'hidden h-full overflow-auto';
+            section.className = 'hidden h-full';
             
-            section.innerHTML = `
-                <pre class="m-0 h-full"><code id="${file.id}" class="language-${file.language} text-sm">${escapeHtml(file.code)}</code></pre>
-            `;
+            // Create header with file path
+            const header = document.createElement('div');
+            header.className = 'file-header bg-gray-800 text-gray-300 text-sm px-4 py-2 border-b border-gray-700';
+            header.textContent = file.path;
             
+            // Create scrollable container
+            const scrollContainer = document.createElement('div');
+            scrollContainer.className = 'overflow-auto h-[calc(100%-2.5rem)]';
+            
+            // Create code content
+            const pre = document.createElement('pre');
+            pre.className = 'm-0 min-w-full';
+            
+            const code = document.createElement('code');
+            code.id = file.id;
+            code.className = `language-${file.language || 'javascript'} text-sm`;
+            code.contentEditable = 'true';
+            code.spellcheck = false;
+            code.textContent = file.code || file.content || '// No content available';
+            
+            pre.appendChild(code);
+            scrollContainer.appendChild(pre);
+            
+            section.appendChild(header);
+            section.appendChild(scrollContainer);
             codeView.appendChild(section);
+
+            // Apply syntax highlighting to this code section
+            Prism.highlightElement(code);
         });
+
+        // Add event listeners for code editing
+        document.querySelectorAll('code[contenteditable="true"]').forEach(codeElement => {
+            // Prevent tab from moving focus
+            codeElement.addEventListener('keydown', function(e) {
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    document.execCommand('insertText', false, '    ');
+                }
+            });
+
+            // Re-highlight on input
+            codeElement.addEventListener('input', function() {
+                Prism.highlightElement(this);
+            });
+        });
+
+        // Show the first file by default
+        const firstSection = document.querySelector('[id$="Section"]');
+        if (firstSection) {
+            firstSection.classList.remove('hidden');
+        }
     }
 
+    // Helper function to escape HTML
     function escapeHtml(text) {
-        return text
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
+        if (typeof text !== 'string') {
+            console.error('Invalid text type:', typeof text);
+            return '';
+        }
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
+
+    // Add event listeners
+    generateBtn.addEventListener('click', handleGenerate);
+    keywordInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleGenerate();
+    });
 });
 
-function showCode(codeId) {
-    try {
-        // Hide all code sections
-        document.querySelectorAll('[id$="Section"]').forEach(section => {
-            section.classList.add('hidden');
-        });
-
-        // Show selected section
-        const selectedSection = document.getElementById(`${codeId}Section`);
-        if (!selectedSection) {
-            console.error(`Section not found: ${codeId}Section`);
-            return;
-        }
+function showCode(fileId) {
+    // Hide all sections
+    document.querySelectorAll('[id$="Section"]').forEach(section => {
+        section.classList.add('hidden');
+    });
+    
+    // Show selected section
+    const selectedSection = document.getElementById(`${fileId}Section`);
+    if (selectedSection) {
         selectedSection.classList.remove('hidden');
-
-        // Update active state of file buttons
-        document.querySelectorAll('.file-button').forEach(btn => {
-            btn.classList.remove('bg-gray-800');
-        });
-
-        const activeButton = document.querySelector(`[onclick="showCode('${codeId}')"]`);
-        if (activeButton) {
-            activeButton.classList.add('bg-gray-800');
+        
+        // Add syntax highlighting
+        const codeElement = selectedSection.querySelector('code');
+        const header = selectedSection.querySelector('.file-header');
+        if (codeElement && header) {
+            const fileName = header.textContent.trim().split('/').pop();
+            const language = fileName.split('.').pop();
+            const highlightedCode = highlightCode(codeElement.textContent, language);
+            codeElement.innerHTML = highlightedCode;
         }
+    }
 
-        // Apply syntax highlighting to visible code
-        const codeElement = document.getElementById(codeId);
-        if (codeElement) {
-            Prism.highlightElement(codeElement);
-        }
-    } catch (error) {
-        console.error('Error in showCode:', error);
+    // Show copy button
+    const copyBtn = document.querySelector('.copy-btn');
+    if (copyBtn) {
+        copyBtn.classList.remove('hidden');
     }
 }
 
@@ -305,296 +409,420 @@ function toggleView(view) {
     const previewView = document.getElementById('previewView');
     const codeTab = document.getElementById('codeTab');
     const previewTab = document.getElementById('previewTab');
+    const previewControls = document.getElementById('previewControls');
 
     if (view === 'code') {
         codeView.classList.remove('hidden');
         previewView.classList.add('hidden');
         codeTab.classList.add('bg-gray-800');
         previewTab.classList.remove('bg-gray-800');
+        previewControls.classList.add('hidden');
     } else {
         codeView.classList.add('hidden');
         previewView.classList.remove('hidden');
         codeTab.classList.remove('bg-gray-800');
         previewTab.classList.add('bg-gray-800');
+        previewControls.classList.remove('hidden');
         updatePreview();
     }
 }
 
-async function updatePreview() {
-    const previewFrame = document.getElementById('previewFrame');
-    const previewError = document.getElementById('previewError');
-    const iframeDoc = previewFrame.contentDocument || previewFrame.contentWindow.document;
-
+function openPreviewInNewTab() {
     try {
-        // Get all the code
-        const allCode = getAllComponentCode();
-
-        // Create the preview HTML
-        iframeDoc.open();
-        iframeDoc.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>React Preview</title>
-                
-                <!-- React -->
-                <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-                <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-                
-                <!-- React Router (Fixed) -->
-                <script crossorigin src="https://unpkg.com/history@5.3.0/umd/history.development.js"></script>
-                <script crossorigin src="https://unpkg.com/@remix-run/router@1.15.3/dist/router.umd.js"></script>
-                <script crossorigin src="https://unpkg.com/react-router@6.22.3/dist/umd/react-router.development.js"></script>
-                <script crossorigin src="https://unpkg.com/react-router-dom@6.22.3/dist/umd/react-router-dom.development.js"></script>
-                
-                <!-- Babel -->
-                <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-                
-                <!-- Tailwind CSS -->
-                <script src="https://cdn.tailwindcss.com"></script>
-
-                <style>
-                    body { margin: 0; padding: 0; }
-                    #root { height: 100vh; }
-                    .error { color: red; padding: 20px; }
-                </style>
-            </head>
-            <body>
-                <div id="root"></div>
-                
-                <script type="text/babel">
-                    try {
-                        // Import React Router components (Fixed)
-                        const {
-                            HashRouter,
-                            Routes,
-                            Route,
-                            Link,
-                            Outlet,
-                            useNavigate,
-                            useLocation
-                        } = ReactRouterDOM;
-
-                        // Error Boundary Component
-                        class ErrorBoundary extends React.Component {
-                            constructor(props) {
-                                super(props);
-                                this.state = { hasError: false, error: null };
-                            }
-
-                            static getDerivedStateFromError(error) {
-                                return { hasError: true, error };
-                            }
-
-                            componentDidCatch(error, errorInfo) {
-                                console.error('Error caught by boundary:', error, errorInfo);
-                            }
-
-                            render() {
-                                if (this.state.hasError) {
-                                    return (
-                                        <div className="error">
-                                            <h2>Something went wrong:</h2>
-                                            <pre>{this.state.error.toString()}</pre>
-                                        </div>
-                                    );
-                                }
-                                return this.props.children;
-                            }
-                        }
-
-                        // Simple state management
-                        const globalState = {
-                            data: {},
-                            listeners: new Set(),
-                            
-                            getState() {
-                                return this.data;
-                            },
-                            
-                            setState(newData) {
-                                this.data = { ...this.data, ...newData };
-                                this.listeners.forEach(listener => listener(this.data));
-                            },
-                            
-                            subscribe(listener) {
-                                this.listeners.add(listener);
-                                return () => this.listeners.delete(listener);
-                            }
-                        };
-
-                        function useGlobalState(selector) {
-                            const [state, setState] = React.useState(() => 
-                                selector ? selector(globalState.getState()) : globalState.getState()
-                            );
-                            
-                            React.useEffect(() => {
-                                return globalState.subscribe(() => {
-                                    const newState = selector ? selector(globalState.getState()) : globalState.getState();
-                                    setState(newState);
-                                });
-                            }, [selector]);
-                            
-                            return state;
-                        }
-
-                        // Make it available globally
-                        window.useGlobalState = useGlobalState;
-                        window.globalState = globalState;
-
-                        // Add all component code
-                        ${allCode}
-
-                        // Render the app with error boundary
-                        const root = ReactDOM.createRoot(document.getElementById('root'));
-                        root.render(
-                            <React.StrictMode>
-                                <ErrorBoundary>
-                                    <HashRouter>
-                                        <App />
-                                    </HashRouter>
-                                </ErrorBoundary>
-                            </React.StrictMode>
-                        );
-                    } catch (error) {
-                        document.getElementById('root').innerHTML = \`
-                            <div class="error">
-                                <h2>Error in Preview:</h2>
-                                <pre>\${error.toString()}</pre>
-                            </div>
-                        \`;
-                        console.error('Preview Error:', error);
-                    }
-                </script>
-            </body>
-            </html>
-        `);
-        iframeDoc.close();
-
-        // Hide error display if successful
-        previewError.classList.add('hidden');
-
+        const files = collectFiles();
+        const htmlContent = generatePreviewContent(files);
+        
+        if (htmlContent) {
+            // Create a data URL instead of a blob URL
+            const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`;
+            window.open(dataUrl, '_blank');
+        }
     } catch (error) {
-        // Show error in error display
-        previewError.classList.remove('hidden');
-        previewError.innerHTML = `
-            <h2 class="text-lg font-bold mb-2">Preview Error:</h2>
-            <pre class="whitespace-pre-wrap">${error.toString()}</pre>
-        `;
-        console.error('Preview Error:', error);
+        console.error('Error opening preview:', error);
     }
 }
 
-// Helper function to get all component code
-function getAllComponentCode() {
-    const filesByType = {
-        store: [],      // Store files first
-        utils: [],      // Utility files
-        components: [], // Then components
-        pages: [],      // Then pages
-        app: [],        // App.jsx last
-        main: []        // main.jsx if exists
+function setPreviewDevice(width) {
+    const previewFrame = document.getElementById('previewFrame');
+    const previewContainer = document.querySelector('.preview-container');
+    
+    const deviceSizes = {
+        'mobile': { width: '375px', height: '667px' },
+        'tablet': { width: '768px', height: '1024px' },
+        'laptop': { width: '1024px', height: '768px' },
+        'desktop': { width: '100%', height: '100%' }
     };
+    
+    if (deviceSizes[width]) {
+        const size = deviceSizes[width];
+        previewFrame.style.width = size.width;
+        previewFrame.style.height = size.height;
+        
+        if (width === 'desktop') {
+            previewContainer.style.width = '100%';
+            previewContainer.style.height = '100%';
+            previewFrame.style.width = '100%';
+            previewFrame.style.height = '100%';
+        } else {
+            previewContainer.style.width = 'auto';
+            previewContainer.style.height = '100%';
+            previewFrame.style.margin = '0 auto';
+        }
+        
+        // Update active state of device buttons
+        document.querySelectorAll('.device-btn').forEach(btn => {
+            btn.classList.toggle('bg-blue-600', btn.dataset.device === width);
+            btn.classList.toggle('bg-gray-700', btn.dataset.device !== width);
+        });
+    }
+}
 
-    // Get all code sections and organize them
-    document.querySelectorAll('[id$="Section"]').forEach(section => {
-        const codeElement = section.querySelector('code');
-        if (!codeElement) return;
-
-        const code = codeElement.textContent;
-        const sectionId = section.id;
-
-        // Skip non-JS/JSX files
-        if (!code || (!sectionId.endsWith('.jsx') && !sectionId.endsWith('.js'))) {
-            return;
+// Update the updatePreview function
+function updatePreview() {
+    const previewFrame = document.getElementById('previewFrame');
+    const previewError = document.getElementById('previewError');
+    
+    try {
+        // Show loading state
+        previewFrame.classList.add('hidden');
+        previewError.classList.add('hidden');
+        
+        // Collect files and generate preview
+        const files = collectFiles();
+        const htmlContent = generatePreviewContent(files);
+        
+        if (!htmlContent) {
+            throw new Error('No preview content generated');
         }
 
-        // Categorize files
-        if (sectionId.includes('/store/')) {
-            filesByType.store.push(code);
-        } else if (sectionId.includes('/utils/')) {
-            filesByType.utils.push(code);
-        } else if (sectionId.includes('/components/')) {
-            filesByType.components.push(code);
-        } else if (sectionId.includes('/pages/')) {
-            filesByType.pages.push(code);
-        } else if (sectionId.includes('App.jsx')) {
-            filesByType.app.push(code);
-        } else if (sectionId.includes('main.jsx')) {
-            filesByType.main.push(code);
+        // Create data URL for the preview
+        const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`;
+        
+        // Update iframe
+        previewFrame.src = dataUrl;
+        previewFrame.onload = () => {
+            previewFrame.classList.remove('hidden');
+        };
+
+        // Set initial device size
+        setPreviewDevice('desktop');
+
+    } catch (error) {
+        console.error('Preview error:', error);
+        previewFrame.classList.add('hidden');
+        previewError.classList.remove('hidden');
+        previewError.querySelector('.text-sm').textContent = error.message;
+    }
+}
+
+// Add image handling to generatePreviewContent
+function generatePreviewContent(files) {
+    const isVanillaWeb = files['index.html'] && files['style.css'] && files['script.js'];
+    const isReactApp = Object.keys(files).some(f => 
+        f.endsWith('.jsx') || 
+        f === 'App.js' || 
+        (f.endsWith('.js') && files[f].includes('React'))
+    );
+    const isVueApp = Object.keys(files).some(f => f.endsWith('.vue'));
+    
+    // Convert image files to data URLs
+    const imageFiles = {};
+    Object.entries(files).forEach(([name, content]) => {
+        if (name.match(/\.(png|jpg|jpeg|gif|svg|webp)$/i)) {
+            // For demo, use placeholder images based on file name
+            imageFiles[name] = `https://via.placeholder.com/400x300?text=${name}`;
         }
     });
-
-    // Add default components if they don't exist
-    if (filesByType.pages.length === 0) {
-        // Add default Home component
-        filesByType.pages.push(`
-            function Home() {
-                return (
-                    <div className="p-4">
-                        <h1 className="text-2xl font-bold mb-4">Home Page</h1>
-                        <p>Welcome to the home page!</p>
-                    </div>
-                );
-            }
-        `);
-
-        // Add default Profile component
-        filesByType.pages.push(`
-            function Profile() {
-                return (
-                    <div className="p-4">
-                        <h1 className="text-2xl font-bold mb-4">Profile Page</h1>
-                        <p>This is your profile page.</p>
-                    </div>
-                );
-            }
-        `);
+    
+    let htmlContent = '';
+    
+    if (isVanillaWeb) {
+        htmlContent = files['index.html'];
+        // Replace image sources with data URLs
+        Object.entries(imageFiles).forEach(([name, dataUrl]) => {
+            htmlContent = htmlContent.replace(
+                new RegExp(`(src|href)=["'].*${name}["']`, 'g'),
+                `$1="${dataUrl}"`
+            );
+        });
+        // Inject CSS
+        if (files['style.css']) {
+            const styleTag = `<style>${files['style.css']}</style>`;
+            htmlContent = htmlContent.replace('</head>', `${styleTag}</head>`);
+        }
+        // Inject JavaScript
+        if (files['script.js']) {
+            const scriptTag = `<script>${files['script.js']}</script>`;
+            htmlContent = htmlContent.replace('</body>', `${scriptTag}</body>`);
+        }
+    } else if (isReactApp) {
+        htmlContent = generateReactPreview(files, imageFiles);
+    } else if (isVueApp) {
+        htmlContent = generateVuePreview(files, imageFiles);
     }
-
-    // Add default App component if it doesn't exist
-    if (filesByType.app.length === 0) {
-        filesByType.app.push(`
-            function App() {
-                return (
-                    <div className="min-h-screen bg-gray-100">
-                        <nav className="bg-white shadow">
-                            <div className="max-w-7xl mx-auto px-4">
-                                <div className="flex justify-between h-16">
-                                    <div className="flex">
-                                        <Link to="/" className="flex items-center px-2 py-2 text-gray-700 hover:text-gray-900">
-                                            Home
-                                        </Link>
-                                        <Link to="/profile" className="flex items-center px-2 py-2 text-gray-700 hover:text-gray-900">
-                                            Profile
-                                        </Link>
-                                    </div>
-                                </div>
-                            </div>
-                        </nav>
-                        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-                            <Routes>
-                                <Route path="/" element={<Home />} />
-                                <Route path="/profile" element={<Profile />} />
-                            </Routes>
-                        </div>
-                    </div>
-                );
-            }
-        `);
+    
+    if (!htmlContent) {
+        throw new Error('Unable to generate preview. Make sure all required files are present.');
     }
+    
+    return htmlContent;
+}
 
-    // Combine all code in the correct order
-    return [
-        ...filesByType.store,
-        ...filesByType.utils,
-        ...filesByType.components,
-        ...filesByType.pages,  // Pages must come before App
-        ...filesByType.app,    // App uses components from pages
-        ...filesByType.main
-    ].join('\n\n');
+// Update collectFiles function to handle all file sections
+function collectFiles() {
+    const files = {};
+    const sections = document.querySelectorAll('[id$="Section"]');
+    
+    sections.forEach(section => {
+        const codeElement = section.querySelector('pre code');
+        const header = section.querySelector('.file-header');
+        
+        if (codeElement && header) {
+            const filePath = header.textContent.trim();
+            const fileName = filePath.split('/').pop();
+            // Get the raw text content without Prism's formatting
+            const rawContent = codeElement.textContent;
+            files[fileName] = rawContent;
+            console.log(`Collected file: ${fileName}`, rawContent.slice(0, 100)); // Debug log
+        }
+    });
+    
+    console.log('Collected files:', Object.keys(files));
+    return files;
+}
+
+// Add syntax highlighting function
+function highlightCode(code, language) {
+    // Add Prism CSS to head if not already present
+    if (!document.querySelector('#prism-css')) {
+        const prismCss = document.createElement('link');
+        prismCss.id = 'prism-css';
+        prismCss.rel = 'stylesheet';
+        prismCss.href = 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css';
+        document.head.appendChild(prismCss);
+    }
+    
+    // Add Prism JS if not already present
+    if (!window.Prism) {
+        const prismJs = document.createElement('script');
+        prismJs.src = 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js';
+        document.body.appendChild(prismJs);
+    }
+    
+    // Wait for Prism to be available
+    if (window.Prism) {
+        return Prism.highlight(code, Prism.languages[language], language);
+    }
+    return code;
+}
+
+// Add this helper function to check if preview is possible
+function canPreview(files) {
+    const hasHtml = Object.keys(files).some(f => f.endsWith('.html'));
+    const hasReact = Object.keys(files).some(f => 
+        f.endsWith('.jsx') || 
+        f === 'App.js' || 
+        (f.endsWith('.js') && files[f].includes('React'))
+    );
+    const hasVue = Object.keys(files).some(f => f.endsWith('.vue'));
+    
+    return hasHtml || hasReact || hasVue;
+}
+
+// Update generateReactPreview to handle images
+function generateReactPreview(files, imageFiles = {}) {
+    // Process components
+    const components = {};
+    Object.entries(files)
+        .filter(([name]) => {
+            return (name.endsWith('.jsx') || name.endsWith('.js')) && 
+                   !name.includes('config') &&
+                   !name.includes('test') &&
+                   !name.startsWith('index.') &&
+                   name !== 'package.json';
+        })
+        .forEach(([name, content]) => {
+            const componentName = name.replace(/\.(js|jsx)$/, '');
+            
+            if (content.includes('React') || content.includes('render') || content.includes('return')) {
+                // Clean up imports and handle image imports
+                let processedContent = content
+                    // Replace image imports with URLs
+                    .replace(
+                        /import\s+(\w+)\s+from\s+['"]\.\.?\/.*\/([\w-]+\.(png|jpg|jpeg|gif|svg|webp))['"];?/g,
+                        (_, varName, fileName) => `const ${varName} = "${imageFiles[fileName] || `https://via.placeholder.com/400x300?text=${fileName}`}";`
+                    )
+                    // Other cleanups...
+                    .replace(/import\s+.*?from\s+['"].*?['"];?\n?/g, '')
+                    .replace(/import\s+{(.*?)}\s+from\s+['"].*?['"];?\n?/g, '')
+                    .replace(/(?:const|let|var)\s+.*?\s*=\s*require\s*\(.*?\);?\n?/g, '')
+                    .replace(/require\s*\(.*?\);?\n?/g, '')
+                    .replace(/export\s+default\s+/, '')
+                    .replace(/export\s+/, '')
+                    .replace(/const\s+React\s*=\s*.*?;?\n?/g, '')
+                    .replace(/import\.meta\.env\.[A-Z_]+/g, '""')
+                    .replace(/^\s*[\r\n]/gm, '');
+
+                // Replace any remaining image paths
+                Object.entries(imageFiles).forEach(([name, url]) => {
+                    processedContent = processedContent.replace(
+                        new RegExp(`(['"]).*${name}(['"])`, 'g'),
+                        `$1${url}$2`
+                    );
+                });
+
+                components[componentName] = processedContent;
+            }
+        });
+
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>React Preview</title>
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    ${files['package.json']?.includes('react-router') ? 
+        '<script src="https://unpkg.com/react-router-dom@5/umd/react-router-dom.min.js"></script>' : ''}
+    ${Object.entries(files)
+        .filter(([name]) => name.endsWith('.css'))
+        .map(([_, content]) => `<style>${content}</style>`)
+        .join('\n')}
+    <style>
+        body { margin: 0; padding: 20px; }
+        #root { max-width: 1200px; margin: 0 auto; }
+        img { max-width: 100%; height: auto; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel" data-presets="env,react">
+        // Global setup
+        window.React = React;
+        window.ReactDOM = ReactDOM;
+        ${files['package.json']?.includes('react-router') ? 
+            'window.ReactRouterDOM = ReactRouterDOM;' : ''}
+
+        // Mock environment variables
+        window.env = {
+            VITE_WEATHER_API_KEY: 'mock-key',
+            // Add other environment variables as needed
+        };
+
+        // Mock common modules
+        const mockModules = {
+            classnames: (...args) => args.filter(Boolean).join(' '),
+            'styled-components': { default: (tag) => tag },
+            '@material-ui/core': { Button: 'button', TextField: 'input' },
+            '@mui/material': { Button: 'button', TextField: 'input' },
+            axios: {
+                get: async (url) => ({
+                    data: { 
+                        // Mock data based on URL
+                        weather: [{ main: 'Clear', description: 'sunny' }],
+                        main: { temp: 20, humidity: 50 },
+                        name: 'Mock City'
+                    }
+                })
+            }
+        };
+
+        // Mock require and import
+        window.require = (module) => mockModules[module] || {};
+        
+        // Define components
+        ${Object.entries(components)
+            .map(([name, code]) => {
+                // Ensure the code is a proper component definition
+                if (code.includes('function') || code.includes('=>')) {
+                    return code.replace(/import\.meta\.env/g, 'window.env');
+                } else {
+                    return `function ${name}() { ${code.replace(/import\.meta\.env/g, 'window.env')} }`;
+                }
+            })
+            .join('\n\n')}
+
+        // Create default App if none exists
+        ${components['App'] ? '' : `
+        function App() {
+            return (
+                <div className="app">
+                    <h1>React Preview</h1>
+                    ${Object.keys(components).map(name => 
+                        name !== 'App' ? `<${name} />` : ''
+                    ).join('\n')}
+                </div>
+            );
+        }`}
+
+        // Render app
+        const root = document.getElementById('root');
+        ReactDOM.render(
+            ${files['package.json']?.includes('react-router') ? 
+                '<BrowserRouter><App /></BrowserRouter>' : 
+                '<App />'
+            },
+            root
+        );
+    </script>
+</body>
+</html>`;
+}
+
+function generateVuePreview(files, imageFiles = {}) {
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vue Preview</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    ${files['package.json']?.includes('vuex') 
+        ? '<script src="https://unpkg.com/vuex@4"></script>' 
+        : ''}
+    ${files['package.json']?.includes('vue-router') 
+        ? '<script src="https://unpkg.com/vue-router@4"></script>' 
+        : ''}
+    ${Object.entries(files)
+        .filter(([name]) => name.endsWith('.css'))
+        .map(([_, content]) => `<style>${content}</style>`)
+        .join('\n')}
+</head>
+<body>
+    <div id="app"></div>
+    ${Object.entries(files)
+        .filter(([name]) => name.endsWith('.vue'))
+        .map(([name, content]) => {
+            // Extract template, script, and style from .vue files
+            const templateMatch = content.match(/<template>([\s\S]*)<\/template>/);
+            const scriptMatch = content.match(/<script>([\s\S]*)<\/script>/);
+            const styleMatch = content.match(/<style>([\s\S]*)<\/style>/);
+            
+            return `
+                ${styleMatch ? `<style>${styleMatch[1]}</style>` : ''}
+                <script type="module">
+                    const ${name.replace('.vue', '')} = {
+                        template: \`${templateMatch ? templateMatch[1] : ''}\`,
+                        ${scriptMatch ? scriptMatch[1].replace(/export default ?\{/, '').replace(/\}$/, '') : ''}
+                    };
+                </script>
+            `;
+        })
+        .join('\n')}
+    <script type="module">
+        const app = Vue.createApp({
+            template: '<App/>',
+            components: { App }
+        });
+        app.mount('#app');
+    </script>
+</body>
+</html>`;
 }
 
 async function copyCurrentCode() {
@@ -610,4 +838,245 @@ async function copyCurrentCode() {
         console.error('Failed to copy text:', err);
         alert('Failed to copy code');
     }
+}
+
+// Update createFolderStructure function
+function createFolderStructure(files) {
+    // Extract project name from the first file path
+    const projectName = files[0].path.split('/')[0];
+    
+    const root = { 
+        name: projectName, 
+        type: 'folder', 
+        children: {} 
+    };
+
+    files.forEach(file => {
+        const parts = file.path.split('/');
+        let current = root.children;
+
+        parts.forEach((part, index) => {
+            if (index === 0) return; // Skip the project name folder as it's already root
+            
+            if (index === parts.length - 1) {
+                // It's a file
+                current[part] = { 
+                    name: part, 
+                    type: 'file', 
+                    id: file.id,
+                    language: file.language,
+                    extension: file.extension,
+                    content: file.content
+                };
+            } else {
+                // It's a folder
+                if (!current[part]) {
+                    current[part] = { 
+                        name: part, 
+                        type: 'folder', 
+                        children: {} 
+                    };
+                }
+                current = current[part].children;
+            }
+        });
+    });
+
+    return root;
+}
+
+// Add download functionality
+async function downloadProject() {
+    try {
+        const zip = new JSZip();
+        const files = [];
+        
+        // Collect all files from code sections
+        document.querySelectorAll('[id$="Section"]').forEach(section => {
+            const codeElement = section.querySelector('code');
+            const header = section.querySelector('.file-header');
+            if (!codeElement || !header) return;
+            
+            const filePath = header.textContent.trim();
+            if (filePath) {
+                files.push({
+                    path: filePath,
+                    content: codeElement.textContent
+                });
+            }
+        });
+
+        // Create folder structure
+        const folderStructure = {};
+        files.forEach(file => {
+            const parts = file.path.split('/');
+            let current = folderStructure;
+            
+            // Create folders
+            for (let i = 0; i < parts.length - 1; i++) {
+                const part = parts[i];
+                if (!current[part]) {
+                    current[part] = {};
+                }
+                current = current[part];
+            }
+            
+            // Add file
+            const fileName = parts[parts.length - 1];
+            current[fileName] = file.content;
+        });
+
+        // Add files to zip maintaining folder structure
+        function addFolderToZip(folder, path = '') {
+            Object.entries(folder).forEach(([name, content]) => {
+                const fullPath = path ? `${path}/${name}` : name;
+                if (typeof content === 'string') {
+                    // It's a file
+                    zip.file(fullPath, content);
+                } else {
+                    // It's a folder
+                    Object.entries(content).forEach(([subName, subContent]) => {
+                        const subPath = `${fullPath}/${subName}`;
+                        if (typeof subContent === 'string') {
+                            zip.file(subPath, subContent);
+                        } else {
+                            addFolderToZip(subContent, fullPath);
+                        }
+                    });
+                }
+            });
+        }
+
+        addFolderToZip(folderStructure);
+
+        // Generate and download zip
+        const content = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(content);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${Object.keys(folderStructure)[0]}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        // Show success message
+        const downloadBtn = document.getElementById('downloadBtn');
+        downloadBtn.textContent = 'Downloaded!';
+        downloadBtn.classList.add('bg-green-600');
+        setTimeout(() => {
+            downloadBtn.textContent = 'Download Project Files';
+            downloadBtn.classList.remove('bg-green-600');
+        }, 2000);
+
+    } catch (error) {
+        console.error('Download error:', error);
+        alert('Failed to download project files. Please try again.');
+    }
+}
+
+// Add click handler for download button
+document.getElementById('downloadBtn').addEventListener('click', downloadProject);
+
+// Add styles for code highlighting
+const codeStyles = document.createElement('style');
+codeStyles.textContent = `
+    .code-editor pre {
+        margin: 0;
+        padding: 1rem;
+        background: #1e1e1e;
+        border-radius: 0.5rem;
+        overflow-x: auto;
+    }
+    .code-editor code {
+        font-family: 'Fira Code', monospace;
+        font-size: 14px;
+        line-height: 1.5;
+        tab-size: 4;
+    }
+    .file-item {
+        transition: all 0.2s ease;
+    }
+    .file-item:hover > button {
+        background-color: rgba(75, 85, 99, 0.4);
+    }
+    .file-item button svg {
+        flex-shrink: 0;
+    }
+`;
+document.head.appendChild(codeStyles);
+
+// Add file type icons mapping
+const fileIcons = {
+    html: `<svg class="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path d="M4 5h16v16H4V5zm2 4h12M4 9l8 8l8-8"/>
+    </svg>`,
+    css: `<svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path d="M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm8 4c-3 0-4 2.5-4 4s1 4 4 4 4-2.5 4-4-1-4-4-4z"/>
+    </svg>`,
+    js: `<svg class="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path d="M3 3h18v18H3V3zm4.5 4.5h3v6a3 3 0 0 1-3 3m7.5-9h3a2.5 2.5 0 0 1 0 5H15v4"/>
+    </svg>`,
+    jsx: `<svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path d="M12 14.9a2.9 2.9 0 1 0 0-5.8 2.9 2.9 0 0 0 0 5.8zm8.7-3.9c0-.5 0-.9-.1-1.3-.3-1.3-1.2-2.4-2.5-3.2-.6-.4-1.3-.7-2.1-.9-.8-.3-1.6-.5-2.5-.6-.9-.1-1.9-.2-2.9-.3-1.5-.1-2.7-.2-3.5-.4-.4-.1-.7-.2-1-.4-.3-.2-.4-.5-.4-.9 0-.3.1-.6.3-.8.2-.2.5-.4.9-.5.4-.1.9-.2 1.5-.3.6-.1 1.3-.1 2.1-.1 1.6 0 2.8.2 3.5.5.7.3 1.1.9 1.2 1.7h4c-.1-1.5-.5-2.7-1.2-3.6-.7-.9-1.7-1.6-3-2-.6-.2-1.3-.3-2-.4-.7-.1-1.5-.2-2.3-.2-.8 0-1.6 0-2.4.1-.8.1-1.6.2-2.3.4-.7.2-1.4.5-2 .8-1.1.7-1.9 1.6-2.4 2.7-.3.6-.4 1.3-.5 2v1c0 .9.2 1.7.6 2.4.4.7.9 1.3 1.6 1.8.7.5 1.5.8 2.3 1.1.8.3 1.7.5 2.6.6.9.1 1.8.2 2.7.3 1.6.1 2.9.3 3.9.5.5.1.8.3 1.1.5.3.2.4.5.4.9 0 .3-.1.6-.3.9-.2.3-.5.5-1 .6-.4.2-1 .3-1.6.3-.7.1-1.4.1-2.3.1-1.7 0-3-.2-3.8-.6-.8-.4-1.3-1.1-1.3-2h-4c0 1.3.3 2.4 1 3.3.7.9 1.6 1.6 2.8 2.1.6.3 1.2.5 1.9.6.7.1 1.4.2 2.2.3.8 0 1.5.1 2.3.1.8 0 1.6-.1 2.3-.2.8-.1 1.5-.2 2.2-.4.7-.2 1.3-.4 1.9-.7 1.1-.6 2-1.3 2.6-2.2.6-.9.9-1.9.9-3.1"/>
+    </svg>`,
+    vue: `<svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path d="M19.027 3l-7.027 12.013L4.973 3H0l12 20.756L24 3z"/>
+    </svg>`,
+    json: `<svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path d="M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm4 4v4c0 1.1.9 2 2 2s2 .9 2 2v4m4-12v4c0 1.1-.9 2-2 2s-2 .9-2 2v4"/>
+    </svg>`,
+    // Default folder icon
+    folder: `<svg class="w-4 h-4 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"/>
+    </svg>`,
+    // Default file icon
+    default: `<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+        <path d="M13 2v7h7"/>
+    </svg>`
+};
+
+// Update createCodeSection to include file icons
+function createCodeSection(file) {
+    const extension = file.path.split('.').pop();
+    const icon = fileIcons[extension] || fileIcons.default;
+    
+    return `
+        <div id="${file.id}Section" class="hidden">
+            <div class="file-header text-sm text-gray-400 mb-2 flex items-center gap-2">
+                ${icon}
+                <span>${file.path}</span>
+            </div>
+            <pre class="code-editor"><code class="language-${file.language}">${file.content}</code></pre>
+        </div>
+    `;
+}
+
+// Update file list creation
+function createFileList(files) {
+    const fileList = document.getElementById('fileList');
+    if (!fileList) return;
+
+    function createFileItem(file, indent = 0) {
+        const extension = file.name.split('.').pop();
+        const icon = file.type === 'folder' ? fileIcons.folder : (fileIcons[extension] || fileIcons.default);
+        
+        return `
+            <div class="file-item" style="padding-left: ${indent * 1.5}rem">
+                <button 
+                    onclick="${file.type === 'file' ? `showCode('${file.id}')` : ''}"
+                    class="w-full text-left px-2 py-1 rounded hover:bg-gray-700 flex items-center gap-2 ${file.type === 'file' ? 'cursor-pointer' : 'cursor-default'}"
+                >
+                    ${icon}
+                    <span class="text-sm ${file.type === 'folder' ? 'font-semibold text-gray-300' : 'text-gray-400'}">${file.name}</span>
+                </button>
+                ${file.type === 'folder' ? Object.values(file.children).map(child => createFileItem(child, indent + 1)).join('') : ''}
+            </div>
+        `;
+    }
+
+    fileList.innerHTML = Object.values(files.children)
+        .map(file => createFileItem(file))
+        .join('');
 }

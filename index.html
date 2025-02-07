@@ -6,6 +6,8 @@
     <title>AI Code Generator</title>
     <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
         .transform {
             transition: transform 0.2s ease-in-out;
@@ -28,21 +30,233 @@
             align-items: center;
             min-width: 0;
         }
+        
+        /* Code view styles */
+        #codeView {
+            @apply relative bg-gray-900 rounded-lg overflow-hidden;
+            height: calc(100vh - 8rem);
+            width: 100%;
+            max-width: 100%;
+        }
+        
+        /* Code container styles */
+        #codeView pre {
+            margin: 0 !important;
+            background-color: #1a1a1a !important;
+            font-family: 'Fira Code', monospace !important;
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+        
+        #codeView code {
+            font-family: inherit !important;
+            font-size: 0.875rem !important;
+            line-height: 1.5 !important;
+            white-space: pre !important;
+            display: block;
+            color: #e5e7eb !important;
+            padding: 0 !important;
+            background: none !important;
+            text-shadow: none !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            tab-size: 4;
+            -moz-tab-size: 4;
+        }
+
+        /* Make contenteditable code more user-friendly */
+        #codeView code[contenteditable="true"] {
+            cursor: text;
+            outline: none;
+        }
+
+        #codeView code[contenteditable="true"]:focus {
+            outline: none;
+            background-color: #1f2937 !important;
+        }
+
+        /* Preserve syntax highlighting while editing */
+        #codeView code[contenteditable="true"] * {
+            pointer-events: none;
+        }
+        
+        /* Syntax highlighting overrides */
+        .token.comment,
+        .token.prolog,
+        .token.doctype,
+        .token.cdata {
+            color: #6b7280 !important;
+        }
+        
+        .token.punctuation {
+            color: #e5e7eb !important;
+        }
+        
+        .token.property,
+        .token.tag,
+        .token.boolean,
+        .token.number,
+        .token.constant,
+        .token.symbol {
+            color: #93c5fd !important;
+        }
+        
+        .token.selector,
+        .token.string,
+        .token.char,
+        .token.builtin {
+            color: #86efac !important;
+        }
+        
+        /* Scrollbar styles */
+        .overflow-auto::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        .overflow-auto::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        
+        .overflow-auto::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+        
+        .overflow-auto::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+
+        /* Add these styles for the code view layout */
+        .code-editor-layout {
+            height: calc(100vh - 2rem);
+            display: flex;
+            flex-direction: column;
+            background: #1a1a1a;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+
+        .editor-header {
+            background: #252526;
+            border-bottom: 1px solid #333;
+            padding: 0.5rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .editor-main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .file-explorer {
+            width: 240px;
+            background: #252526;
+            border-right: 1px solid #333;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .editor-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Scrollbar styles */
+        .editor-content .overflow-auto {
+            overflow: auto;
+            height: 100%;
+        }
+
+        /* Custom scrollbar for code view */
+        .editor-content .overflow-auto::-webkit-scrollbar,
+        .file-explorer::-webkit-scrollbar {
+            width: 14px;
+            height: 14px;
+        }
+
+        .editor-content .overflow-auto::-webkit-scrollbar-track,
+        .file-explorer::-webkit-scrollbar-track {
+            background: #1e1e1e;
+        }
+
+        .editor-content .overflow-auto::-webkit-scrollbar-thumb,
+        .file-explorer::-webkit-scrollbar-thumb {
+            background: #424242;
+            border: 4px solid #1e1e1e;
+            border-radius: 7px;
+        }
+
+        .editor-content .overflow-auto::-webkit-scrollbar-thumb:hover,
+        .file-explorer::-webkit-scrollbar-thumb:hover {
+            background: #525252;
+        }
+
+        .editor-content .overflow-auto::-webkit-scrollbar-corner {
+            background: #1e1e1e;
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen">
     <div class="container mx-auto p-6">
-        <div class="grid grid-cols-3 gap-6">
-            <!-- Left Section -->
-            <div class="col-span-1">
+        <div id="initialView" class="flex justify-center items-center min-h-[80vh]">
+            <div class="w-full max-w-md">
                 <div class="bg-gray-800 rounded-lg p-6 mb-6">
                     <p class="text-gray-300">
-                        I'll help you create a beautiful and professional website using HTML, CSS, and JavaScript. I'll create a modern, clean design with responsive layout and interactive features.
+                        I'll help you create a beautiful and professional application. Select your preferred technology and describe what you'd like to create.
                     </p>
                 </div>
 
                 <div class="bg-gray-800 rounded-lg p-6">
                     <div class="flex flex-col gap-4">
+                        <div class="grid grid-cols-2 gap-3">
+                            <button 
+                                type="button"
+                                class="technology-btn p-4 rounded-lg border-2 border-transparent hover:border-blue-500 transition-colors bg-gray-700 flex flex-col items-center gap-2"
+                                data-tech="react"
+                            >
+                                <svg class="tech-icon w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 13.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/>
+                                    <path d="M12 22.5c-2.786 0-5.33-.456-7.324-1.366C2.683 20.224 1.5 18.987 1.5 17.5c0-1.487 1.183-2.724 3.176-3.634C6.67 12.956 9.214 12.5 12 12.5c2.786 0 5.33.456 7.324 1.366 1.993.91 3.176 2.147 3.176 3.634 0 1.487-1.183 2.724-3.176 3.634C17.33 22.044 14.786 22.5 12 22.5z"/>
+                                </svg>
+                                <span class="tech-name">React</span>
+                            </button>
+                            <button 
+                                type="button"
+                                class="technology-btn p-4 rounded-lg border-2 border-transparent hover:border-blue-500 transition-colors bg-gray-700 flex flex-col items-center gap-2"
+                                data-tech="next"
+                            >
+                                <svg class="tech-icon w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M11.572 0c-.176 0-.31.001-.358.007a19.76 19.76 0 0 1-.364.033C7.443.346 4.25 2.185 2.228 5.012a11.875 11.875 0 0 0-2.119 5.243c-.096.659-.108.854-.108 1.747s.012 1.089.108 1.748c.652 4.506 3.86 8.292 8.209 9.695.779.25 1.6.422 2.534.525.363.04 1.935.04 2.299 0 1.611-.178 2.977-.577 4.323-1.264.207-.106.247-.134.219-.158-.02-.013-.9-1.193-1.955-2.62l-1.919-2.592-2.404-3.558a338.739 338.739 0 0 0-2.422-3.556c-.009-.002-.018 1.579-.023 3.51-.007 3.38-.01 3.515-.052 3.595a.426.426 0 0 1-.206.214c-.075.037-.14.044-.495.044H7.81l-.108-.068a.438.438 0 0 1-.157-.171l-.05-.106.006-4.703.007-4.705.072-.092a.645.645 0 0 1 .174-.143c.096-.047.134-.051.54-.051.478 0 .558.018.682.154.035.038 1.337 1.999 2.895 4.361a10760.433 10760.433 0 0 0 4.735 7.17l1.9 2.879.096-.063a12.317 12.317 0 0 0 2.466-2.163 11.944 11.944 0 0 0 2.824-6.134c.096-.66.108-.854.108-1.748 0-.893-.012-1.088-.108-1.747-.652-4.506-3.859-8.292-8.208-9.695a12.597 12.597 0 0 0-2.499-.523A33.119 33.119 0 0 0 11.573 0zm4.069 7.217c.347 0 .408.005.486.047a.473.473 0 0 1 .237.277c.018.06.023 1.365.018 4.304l-.006 4.218-.744-1.14-.746-1.14v-3.066c0-1.982.01-3.097.023-3.15a.478.478 0 0 1 .233-.296c.096-.05.13-.054.5-.054z"/>
+                                </svg>
+                                <span class="tech-name">Next.js</span>
+                            </button>
+                            <button 
+                                type="button"
+                                class="technology-btn p-4 rounded-lg border-2 border-transparent hover:border-blue-500 transition-colors bg-gray-700 flex flex-col items-center gap-2"
+                                data-tech="vue"
+                            >
+                                <svg class="tech-icon w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M24 1.61h-9.94L12 5.16 9.94 1.61H0l12 20.78L24 1.61zM12 14.08L5.16 2.23h4.43L12 6.41l2.41-4.18h4.43L12 14.08z"/>
+                                </svg>
+                                <span class="tech-name">Vue.js</span>
+                            </button>
+                            <button 
+                                type="button"
+                                class="technology-btn p-4 rounded-lg border-2 border-transparent hover:border-blue-500 transition-colors bg-gray-700 flex flex-col items-center gap-2"
+                                data-tech="native"
+                            >
+                                <svg class="tech-icon w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2zm0 3a1 1 0 100 2 1 1 0 000-2zM8 8a1 1 0 100 2 1 1 0 000-2zm8 0a1 1 0 100 2 1 1 0 000-2zm-4 2c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3z"/>
+                                </svg>
+                                <span class="tech-name">React Native</span>
+                            </button>
+                        </div>
+
                         <input 
                             type="text" 
                             id="keywordInput" 
@@ -52,7 +266,8 @@
                         <button 
                             type="button"
                             id="generateBtn"
-                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-md transition-colors cursor-pointer flex items-center justify-center gap-2"
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-md transition-colors cursor-pointer flex items-center justify-center gap-2 opacity-50"
+                            disabled
                         >
                             <span>Generate Code</span>
                             <div id="buttonLoader" class="hidden">
@@ -62,72 +277,154 @@
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Right Section -->
-            <div class="col-span-2">
-                <div id="loadingIndicator" class="hidden mb-4">
-                    <!-- Remove this entire div -->
-                </div>
-
-                <div class="bg-gray-800 rounded-lg overflow-hidden shadow-xl">
-                    <div class="flex bg-gray-900 text-gray-400 text-sm">
-                        <button onclick="toggleView('code')" id="codeTab" class="px-4 py-2 hover:bg-gray-800 bg-gray-800">Code</button>
-                        <button onclick="toggleView('preview')" id="previewTab" class="px-4 py-2 hover:bg-gray-800">Preview</button>
+        <!-- Code View (Initially hidden) -->
+        <div id="codePreviewView" class="hidden">
+            <div class="grid grid-cols-4 gap-6">
+                <!-- Left Section (After generation) -->
+                <div class="col-span-1">
+                    <div class="bg-gray-800 rounded-lg p-6 mb-6">
+                        <p class="text-gray-300">
+                            I'll help you create a beautiful and professional website using HTML, CSS, and JavaScript. I'll create a modern, clean design with responsive layout and interactive features.
+                        </p>
                     </div>
 
-                    <div class="flex h-[600px]">
-                        <div class="w-48 bg-gray-900 p-2 border-r border-gray-700">
-                            <div class="text-sm text-gray-400 mb-2">Files</div>
-                            <div class="space-y-1">
-                                <button onclick="showCode('htmlCode')" class="file-button flex items-center w-full text-left px-2 py-1 rounded hover:bg-gray-800">
-                                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                        <path d="M4 4h12v2H4V4zm0 5h12v2H4V9zm0 5h12v2H4v-2z"/>
+                    <div class="bg-gray-800 rounded-lg p-6">
+                        <div class="flex flex-col gap-4">
+                            <input 
+                                type="text" 
+                                id="keywordInputAfter" 
+                                placeholder="What would you like me to create?"
+                                class="w-full p-3 rounded-md bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none"
+                            >
+                            <button 
+                                type="button"
+                                id="generateBtnAfter"
+                                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-md transition-colors cursor-pointer flex items-center justify-center gap-2"
+                            >
+                                Generate Code
+                            </button>
+                            <button 
+                                type="button"
+                                id="downloadBtn"
+                                class="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-md transition-colors cursor-pointer hidden"
+                            >
+                                Download Project Files
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Section -->
+                <div class="col-span-3">
+                    <div class="code-editor-layout">
+                        <div class="editor-header">
+                            <button onclick="toggleView('code')" id="codeTab" class="px-4 py-1 rounded hover:bg-gray-700 bg-gray-700">Code</button>
+                            <button onclick="toggleView('preview')" id="previewTab" class="px-4 py-1 rounded hover:bg-gray-700">Preview</button>
+                            
+                            <!-- Add device control buttons -->
+                            <div class="preview-controls ml-auto flex items-center gap-2 hidden" id="previewControls">
+                                <div class="device-controls flex items-center gap-1">
+                                    <button 
+                                        class="device-btn p-1.5 rounded hover:bg-gray-600 bg-gray-700" 
+                                        onclick="setPreviewDevice('mobile')"
+                                        data-device="mobile"
+                                        title="Mobile view"
+                                    >
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                        </svg>
+                                    </button>
+                                    <button 
+                                        class="device-btn p-1.5 rounded hover:bg-gray-600 bg-gray-700" 
+                                        onclick="setPreviewDevice('tablet')"
+                                        data-device="tablet"
+                                        title="Tablet view"
+                                    >
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                        </svg>
+                                    </button>
+                                    <button 
+                                        class="device-btn p-1.5 rounded hover:bg-gray-600 bg-gray-700" 
+                                        onclick="setPreviewDevice('laptop')"
+                                        data-device="laptop"
+                                        title="Laptop view"
+                                    >
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                                        </svg>
+                                    </button>
+                                    <button 
+                                        class="device-btn p-1.5 rounded hover:bg-gray-600 bg-blue-600" 
+                                        onclick="setPreviewDevice('desktop')"
+                                        data-device="desktop"
+                                        title="Desktop view"
+                                    >
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="border-l border-gray-600 h-6"></div>
+                                <button 
+                                    class="p-1.5 rounded hover:bg-gray-600 bg-gray-700"
+                                    onclick="openPreviewInNewTab()"
+                                    title="Open in new tab"
+                                >
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
                                     </svg>
-                                    index.html
-                                </button>
-                                <button onclick="showCode('cssCode')" class="file-button flex items-center w-full text-left px-2 py-1 rounded hover:bg-gray-800">
-                                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                        <path d="M4 4h12v2H4V4zm0 5h12v2H4V9zm0 5h12v2H4v-2z"/>
-                                    </svg>
-                                    style.css
-                                </button>
-                                <button onclick="showCode('jsCode')" class="file-button flex items-center w-full text-left px-2 py-1 rounded hover:bg-gray-800">
-                                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                        <path d="M4 4h12v2H4V4zm0 5h12v2H4V9zm0 5h12v2H4v-2z"/>
-                                    </svg>
-                                    script.js
                                 </button>
                             </div>
                         </div>
-
-                        <div class="flex-1 relative">
-                            <div id="codeView" class="h-full">
-                                <button onclick="copyCurrentCode()" class="copy-btn hidden absolute top-2 right-2 bg-gray-700/50 hover:bg-gray-600 p-2 rounded-md z-10">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
-                                    </svg>
-                                </button>
-                                
-                                <div id="htmlCodeSection" class="hidden h-full overflow-auto">
-                                    <pre class="m-0 h-full"><code id="htmlCode" class="language-html text-sm">// HTML code will appear here</code></pre>
-                                </div>
-                                <div id="cssCodeSection" class="hidden h-full overflow-auto">
-                                    <pre class="m-0 h-full"><code id="cssCode" class="language-css text-sm">// CSS code will appear here</code></pre>
-                                </div>
-                                <div id="jsCodeSection" class="hidden h-full overflow-auto">
-                                    <pre class="m-0 h-full"><code id="jsCode" class="language-javascript text-sm">// JavaScript code will appear here</code></pre>
+                        
+                        <div class="editor-main">
+                            <!-- File Explorer -->
+                            <div class="file-explorer">
+                                <div class="p-2">
+                                    <div class="text-sm text-gray-400 mb-2">Files</div>
+                                    <div class="space-y-1" id="fileList">
+                                        <!-- File list will be populated here -->
+                                    </div>
                                 </div>
                             </div>
 
-                            <div id="previewView" class="hidden h-full bg-white">
-                                <div class="h-full w-full relative">
-                                    <iframe 
-                                        id="previewFrame" 
-                                        class="w-full h-full border-none"
-                                        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-presentation allow-downloads"
-                                        allow="clipboard-read; clipboard-write; cross-origin-isolated"
-                                    ></iframe>
-                                    <div id="previewError" class="hidden absolute inset-0 bg-red-50 p-4 text-red-600 overflow-auto">
+                            <!-- Editor Content -->
+                            <div class="editor-content">
+                                <div id="codeView" class="relative">
+                                    <!-- Copy button -->
+                                    <button onclick="copyCurrentCode()" class="copy-btn absolute top-2 right-2 bg-gray-700/50 hover:bg-gray-600 p-2 rounded-md z-10">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                                        </svg>
+                                    </button>
+                                    
+                                    <!-- Code sections will be added here -->
+                                </div>
+
+                                <!-- Preview section -->
+                                <div id="previewView" class="hidden h-full">
+                                    <div class="h-full w-full relative bg-gray-900 rounded-lg overflow-hidden flex flex-col">
+                                        <div class="flex-1 overflow-hidden flex justify-center items-start p-4">
+                                            <div class="preview-container relative h-full flex justify-center overflow-auto">
+                                                <iframe 
+                                                    id="previewFrame" 
+                                                    class="bg-white rounded-lg shadow-lg transition-all duration-300"
+                                                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-presentation"
+                                                    allow="clipboard-read; clipboard-write"
+                                                ></iframe>
+                                            </div>
+                                        </div>
+                                        <div id="previewError" class="hidden absolute inset-0 bg-gray-900 p-4 text-gray-300 overflow-auto">
+                                            <div class="max-w-2xl mx-auto mt-8">
+                                                <div class="bg-gray-800 rounded-lg p-4">
+                                                    <div class="font-semibold mb-2">Preview Error:</div>
+                                                    <div class="text-sm"></div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

@@ -1,0 +1,251 @@
+/* Add these styles */
+.technology-btn {
+    position: relative;
+    overflow: hidden;
+}
+
+.technology-btn::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, #3b82f6, #2563eb);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.technology-btn.selected::after {
+    opacity: 0.1;
+}
+
+.technology-btn.selected {
+    border-color: #3b82f6;
+    transform: scale(0.98);
+}
+
+.generating-indicator {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 50;
+}
+
+.generating-content {
+    background: #1f2937;
+    padding: 2rem;
+    border-radius: 1rem;
+    text-align: center;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.tech-icon {
+    transition: transform 0.3s ease;
+}
+
+.technology-btn:hover .tech-icon {
+    transform: translateY(-2px);
+}
+
+.technology-btn.selected .tech-icon {
+    transform: scale(1.1);
+}
+
+/* Add these styles for the code view layout */
+.code-editor-layout {
+    height: calc(100vh - 2rem);
+    display: flex;
+    flex-direction: column;
+    background: #1a1a1a;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.editor-header {
+    background: #252526;
+    border-bottom: 1px solid #333;
+    padding: 0.5rem;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.editor-main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+.file-explorer {
+    width: 240px;
+    background: #252526;
+    border-right: 1px solid #333;
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+.editor-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Code view styles */
+#codeView {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    background: #1e1e1e;
+    display: flex;
+    flex-direction: column;
+}
+
+#codeView .overflow-auto {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+}
+
+#codeView pre {
+    margin: 0 !important;
+    padding: 1rem !important;
+    min-width: 100%;
+    width: max-content;
+}
+
+/* Ensure horizontal scrollbar is always at bottom */
+.overflow-auto {
+    overflow-y: scroll;
+    overflow-x: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.overflow-auto pre {
+    flex: 1;
+}
+
+/* Make horizontal scrollbar more visible */
+.overflow-auto::-webkit-scrollbar-track:horizontal {
+    margin-left: 14px;
+    margin-right: 14px;
+}
+
+#codeView code {
+    font-family: 'Fira Code', monospace !important;
+    font-size: 0.875rem !important;
+    line-height: 1.5 !important;
+    white-space: pre !important;
+    tab-size: 4;
+    -moz-tab-size: 4;
+}
+
+/* Scrollbar styles */
+.editor-content .overflow-auto {
+    overflow: auto;
+    height: 100%;
+}
+
+/* Custom scrollbar for code view */
+.editor-content .overflow-auto::-webkit-scrollbar,
+.file-explorer::-webkit-scrollbar {
+    width: 14px;
+    height: 14px;
+}
+
+.editor-content .overflow-auto::-webkit-scrollbar-track,
+.file-explorer::-webkit-scrollbar-track {
+    background: #1e1e1e;
+}
+
+.editor-content .overflow-auto::-webkit-scrollbar-thumb,
+.file-explorer::-webkit-scrollbar-thumb {
+    background: #424242;
+    border: 4px solid #1e1e1e;
+    border-radius: 7px;
+}
+
+.editor-content .overflow-auto::-webkit-scrollbar-thumb:hover,
+.file-explorer::-webkit-scrollbar-thumb:hover {
+    background: #525252;
+}
+
+.editor-content .overflow-auto::-webkit-scrollbar-corner {
+    background: #1e1e1e;
+}
+
+/* Add these styles for the file header */
+.file-header {
+    background-color: #252526;
+    border-bottom: 1px solid #333;
+}
+
+/* Update preview styles */
+.preview-container {
+    max-width: 100%;
+    max-height: 100%;
+    transition: all 0.3s ease;
+}
+
+#previewFrame {
+    transition: all 0.3s ease;
+    max-width: 100%;
+    height: 100%;
+    background: white;
+    border: none;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Device preview styles */
+.preview-container.mobile #previewFrame {
+    max-height: 667px;
+}
+
+.preview-container.tablet #previewFrame {
+    max-height: 1024px;
+}
+
+.preview-container.laptop #previewFrame {
+    max-height: 768px;
+}
+
+/* Preview controls */
+.preview-controls {
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+.preview-controls:hover {
+    opacity: 1;
+}
+
+.device-btn {
+    transition: all 0.2s ease;
+    color: #fff;
+}
+
+.device-btn:hover {
+    transform: translateY(-1px);
+}
+
+.device-btn.active {
+    background-color: #3b82f6;
+}
+
+/* Preview container styles */
+#previewView {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    background: #1e1e1e;
+}
+

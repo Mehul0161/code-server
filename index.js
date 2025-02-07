@@ -12,23 +12,25 @@ app.use(express.json());
 
 // Basic health check route
 app.post("/api/code", async (req, res) => {
-  const { inputText } = req.body;
-  console.log(inputText);
+  const { inputText, technology } = req.body;
+  console.log("Input text:", inputText);
+  console.log("Technology:", technology);
   
   if (!inputText) {
-    return res.status(400).json({ error: "No input text provided" });
+    return res.status(400).json({ error: "Input text is required" });
   }
 
   try {
-    const result = await getCode(inputText);
-    console.log("Generated code:", result);
-
-    if (!result.success) {
-      return res.status(422).json({ error: "Failed to generate code" });
-    }
-
+    // If no technology specified or 'vanilla', use HTML/CSS/JS
+    const techToUse = technology === 'vanilla' || !technology ? 'html' : technology;
+    const result = await getCode(inputText, techToUse);
+    
+    console.log("Generated files:", result.files.map(f => ({
+      path: f.path,
+      contentLength: f.content?.length || f.code?.length || 0
+    })));
+    
     res.json(result);
-
   } catch (error) {
     console.error("Error:", error);
     res.status(500).json({ error: "Failed to generate code", details: error.message });
@@ -44,10 +46,101 @@ app.use((err, req, res, next) => {
 // Start server
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
-});
+}); 
 
-async function getCode(keyword) {
+async function getCode(keyword, technology) {
   try {
+    // Add technology-specific configurations
+    const config = {
+      html: {
+        temperature: 0.7,
+        max_tokens: 2500,
+        system_message: `You are a web development expert. Create a complete web application using HTML, CSS, and vanilla JavaScript with modern styling using Tailwind CSS. Follow best practices and create clean, well-structured code.
+              
+        Provide the code in this exact format:
+        web-app/index.html
+        \`\`\`html
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>[Your Title]</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+            <link rel="stylesheet" href="style.css">
+        </head>
+        <body>
+            [Your HTML code here]
+            <script src="script.js"></script>
+        </body>
+        </html>
+        \`\`\`
+
+        web-app/style.css
+        \`\`\`css
+        [Your CSS code here]
+        \`\`\`
+
+        web-app/script.js
+        \`\`\`javascript
+        [Your JavaScript code here]
+        \`\`\``
+      },
+      react: {
+        temperature: 0.6,
+        max_tokens: 2500,
+        system_message: `You are a React expert. Create a modern React application with clean code and best practices.
+        
+        Provide the code in this exact format with all necessary files:
+        web-app/package.json
+        \`\`\`json
+        {
+          "name": "web-app",
+          "private": true,
+          "version": "0.0.0",
+          "type": "module",
+          "scripts": {
+            "dev": "vite",
+            "build": "vite build",
+            "preview": "vite preview"
+          },
+          "dependencies": {
+            "react": "^18.2.0",
+            "react-dom": "^18.2.0"
+          }
+        }
+        \`\`\`
+
+        web-app/src/App.jsx
+        \`\`\`jsx
+        [Your App component code here]
+        \`\`\`
+
+        web-app/src/main.jsx
+        \`\`\`jsx
+        [Your main entry file code here]
+        \`\`\`
+
+        web-app/src/components/[ComponentName].jsx
+        \`\`\`jsx
+        [Your component code here]
+        \`\`\`
+
+        web-app/src/styles/index.css
+        \`\`\`css
+        [Your styles here]
+        \`\`\`
+
+        web-app/index.html
+        \`\`\`html
+        [Your HTML template here]
+        \`\`\`
+        `
+      }
+    };
+
+    const currentConfig = config[technology] || config.html;
+
     const response = await axios({
       url: "https://api.fireworks.ai/inference/v1/chat/completions",
       method: "POST",
@@ -57,146 +150,64 @@ async function getCode(keyword) {
       },
       data: {
         model: "accounts/fireworks/models/deepseek-v3",
-        temperature: 1,
-        n: 1,
-        max_tokens: 4000,
+        temperature: currentConfig.temperature,
+        max_tokens: currentConfig.max_tokens,
         messages: [
           {
             role: "system",
-            content: `You are a code generator that creates complete React project structures. For each file, you must provide both the filepath and complete code content.
-
-Always format your response exactly like this for each file:
-
-filepath
-\`\`\`filetype
-complete code content here
-\`\`\`
-
-For example:
-
-src/App.jsx
-\`\`\`jsx
-import React from 'react';
-import { BrowserRouter } from 'react-router-dom';
-
-function App() {
-  return (
-    <BrowserRouter>
-      {/* Component content */}
-    </BrowserRouter>
-  );
-}
-
-export default App;
-\`\`\`
-
-src/components/Header.jsx
-\`\`\`jsx
-import React from 'react';
-
-function Header() {
-  return (
-    <header>
-      {/* Header content */}
-    </header>
-  );
-}
-
-export default Header;
-\`\`\`
-
-IMPORTANT:
-- Always provide complete, working code for each file
-- Include all necessary imports
-- Ensure code is properly formatted
-- Don't use placeholders or incomplete code
-- Don't skip any necessary files
-- Include full implementation details`
+            content: currentConfig.system_message
           },
           {
             role: "user",
-            content: `Create a modern React ${keyword} application with the following structure:
+            content: `Create a web application that will: ${keyword}
 
-Required files and structure:
-- src/
-  - components/
-    - Layout.jsx
-    - Navbar.jsx
-  - pages/
-    - Home.jsx
-    - Profile.jsx
-  - store/
-    - index.js
-  - App.jsx
-  - main.jsx
-  - index.css
-- package.json
-- vite.config.js
-- tailwind.config.js
-- postcss.config.js
-- README.md
-
-Requirements:
-- Complete, working code for all components
-- Proper routing setup
-- Modern styling with Tailwind CSS
-- State management in store/index.js
-- Clear documentation in README.md
-- All necessary dependencies in package.json`
+Make sure to:
+1. Use semantic HTML/components
+2. Use modern styling
+3. Make it fully responsive
+4. Add proper error handling
+5. Make it accessible
+6. Add proper comments
+7. Include all necessary files
+8. Ensure code is complete and functional`
           }
         ]
       }
     });
 
-    const content = response.data.choices[0].message.content;
-    console.log("Raw API Response length:", content.length);
-    
-    if (!content) {
-      throw new Error("Empty response from API");
+    const generatedCode = response.data.choices[0].message.content;
+    console.log("Generated code:", generatedCode);
+
+    // Parse the response into files
+    const files = [];
+    const fileRegex = /web-app\/([^`]+)\n```[^\n]*\n([\s\S]*?)\n```/g;
+    let match;
+
+    while ((match = fileRegex.exec(generatedCode)) !== null) {
+      const [_, filePath, content] = match;
+      files.push({
+        id: `web-app_${filePath}`.toLowerCase().replace(/[/.]/g, '_'),
+        path: `web-app/${filePath.trim()}`,
+        content: content.trim(),
+        language: filePath.split('.').pop(),
+        extension: filePath.split('.').pop()
+      });
     }
 
-    const result = finalCode(content);
-    console.log("Parse result:", {
-      success: result.success,
-      fileCount: result.files.length,
-      files: result.files.map(f => f.path)
-    });
-    
-    if (!result.success) {
-      throw new Error(result.error || "Failed to parse generated code");
+    console.log("Generated files:", files);
+
+    if (files.length === 0) {
+      throw new Error("No files were generated. Please try again.");
     }
 
-    // Validate required files
-    const requiredFiles = [
-      'src/components/Layout.jsx',
-      'src/components/Navbar.jsx',
-      'src/pages/Home.jsx',
-      'src/pages/Profile.jsx',
-      'src/store/index.js',
-      'src/App.jsx',
-      'src/main.jsx',
-      'src/index.css',
-      'package.json',
-      'vite.config.js',
-      'tailwind.config.js',
-      'postcss.config.js',
-      'README.md'
-    ];
-
-    const missingFiles = requiredFiles.filter(file => 
-      !result.files.some(f => f.path === file)
-    );
-
-    if (missingFiles.length > 0) {
-      console.error("Missing required files:", missingFiles);
-      throw new Error(`Missing required files: ${missingFiles.join(', ')}`);
-    }
-
-    return result;
+    return {
+      success: true,
+      files: files,
+      folders: createFolderStructure(files)
+    };
 
   } catch (error) {
     console.error("Error in getCode:", error);
-    console.error("Stack trace:", error.stack);
     throw error;
   }
 }
@@ -431,4 +442,52 @@ function cleanCode(str) {
     .replace(/\\'/g, "'")
     .replace(/\\t/g, '    ')
     .replace(/\n{3,}/g, '\n\n');
+}
+
+// Helper function to get technology-specific instructions
+function getTechnologySpecificInstructions(technology) {
+  const instructions = {
+    html: `
+- Use semantic HTML5 elements
+- Include responsive CSS
+- Use modern JavaScript features
+- Follow web accessibility guidelines
+- Include proper meta tags
+- Use CSS best practices
+- Consider cross-browser compatibility`,
+    react: `
+- Use modern React features (hooks, context, etc.)
+- Follow React component organization best practices
+- Include proper React routing setup
+- Use proper state management patterns
+- Include necessary React configuration files
+- Follow React naming conventions
+- Consider React performance best practices`,
+    next: `
+- Follow Next.js project structure conventions
+- Use appropriate Next.js features (SSR, SSG, ISR)
+- Include proper routing setup for Next.js
+- Follow Next.js data fetching patterns
+- Include necessary Next.js configuration files
+- Use Next.js specific optimizations
+- Consider Next.js deployment requirements`,
+    vue: `
+- Follow Vue.js 3 composition API patterns
+- Use Vue.js project structure conventions
+- Include Vuex/Pinia for state management
+- Follow Vue.js routing best practices
+- Include necessary Vue.js configuration files
+- Use Vue.js specific features properly
+- Consider Vue.js performance patterns`,
+    native: `
+- Follow React Native project structure
+- Include proper navigation setup
+- Use React Native specific components
+- Follow mobile-first design patterns
+- Include necessary mobile configurations
+- Consider cross-platform compatibility
+- Include proper React Native setup files`
+  };
+
+  return instructions[technology] || instructions.html;
 }
